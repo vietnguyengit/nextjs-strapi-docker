@@ -1,0 +1,52 @@
+version: "3.3"
+services:
+  traefik:
+    image: "traefik:v2.9"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+#      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  frontend:
+    image: nextjs-frontend:latest
+    container_name: nextjs-frontend
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`simis.com.au`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.frontend.entrypoints=web"
+    build:
+      context: ./frontend
+    environment:
+      NODE_ENV: production
+
+  backend:
+    image: nextjs-backend:latest
+    container_name: nextjs-backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`backend.localhost`) || Host(`backend.simis.com.au`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=1337"
+      - "traefik.http.routers.backend.entrypoints=web"
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      NODE_ENV: production
+    volumes:
+      - ./backend/config:/opt/app/config
+      - ./backend/src:/opt/app/src
+      - ./backend/package.json:/opt/package.json
+      - ./backend/yarn.lock:/opt/yarn.lock
+      - ./backend/.env:/opt/app/.env
