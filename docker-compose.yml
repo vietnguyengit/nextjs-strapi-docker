@@ -1,11 +1,12 @@
 version: "3.3"
 services:
   traefik:
-    image: "traefik:v2.9"
-    container_name: "traefik"
+    image: 339201983412.dkr.ecr.ap-southeast-2.amazonaws.com/myblog-nextjs-traefik:latest
+    build:
+      context: ./traefik
     command:
       #- "--log.level=DEBUG"
-#      - "--api.insecure=true"
+      #- "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
@@ -16,8 +17,9 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
   nginx:
-    image: nextjs-nginx:latest
-    container_name: nextjs-nginx
+    image: 339201983412.dkr.ecr.ap-southeast-2.amazonaws.com/myblog-nextjs-nginx:latest
+    build:
+      context: ./frontend/nginx
     depends_on:
       - frontend
     labels:
@@ -25,12 +27,9 @@ services:
       - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`simis.com.au`)"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
       - "traefik.http.routers.frontend.entrypoints=web"
-    build:
-      context: ./frontend/nginx
 
   frontend:
-    image: nextjs-frontend:latest
-    container_name: nextjs-frontend
+    image: 339201983412.dkr.ecr.ap-southeast-2.amazonaws.com/myblog-nextjs-frontend:latest
     depends_on:
       - backend
     build:
@@ -39,8 +38,7 @@ services:
       NODE_ENV: production
 
   backend:
-    image: nextjs-backend:latest
-    container_name: nextjs-backend
+    image: 339201983412.dkr.ecr.ap-southeast-2.amazonaws.com/myblog-nextjs-backend:latest
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`backend.localhost`) || Host(`backend.simis.com.au`)"
