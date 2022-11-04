@@ -1,12 +1,9 @@
 # build environment
-FROM node:latest as build
+FROM node:latest
 WORKDIR /app
+RUN npm install --global pm2
 COPY ./package*.json ./
 RUN npm install --production
 COPY . .
 RUN npm run build
-# production environment
-#FROM nginx:stable-alpine
-#COPY --from=build /app/.next/ /usr/share/nginx/html
-#COPY --from=build /app/nginx/nginx.conf /etc/nginx/conf.d/default.conf
-ENTRYPOINT npm run start
+CMD ["pm2-runtime", "npm", "--", "start"]

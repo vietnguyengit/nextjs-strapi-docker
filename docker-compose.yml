@@ -5,7 +5,7 @@ services:
     container_name: "traefik"
     command:
       #- "--log.level=DEBUG"
-#      - "--api.insecure=true"
+      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
@@ -15,16 +15,23 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
+  nginx:
+    image: nextjs-nginx:latest
+    container_name: nextjs-nginx
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`simis.com.au`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.http.routers.frontend.entrypoints=web"
+    build:
+      context: ./frontend/nginx
+
   frontend:
     image: nextjs-frontend:latest
     container_name: nextjs-frontend
     depends_on:
+      - nginx
       - backend
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`simis.com.au`)"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
-      - "traefik.http.routers.frontend.entrypoints=web"
     build:
       context: ./frontend
     environment:
