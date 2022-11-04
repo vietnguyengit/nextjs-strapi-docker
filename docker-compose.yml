@@ -47,7 +47,6 @@ services:
     build:
       context: ./backend
     restart: unless-stopped
-    env_file: ./backend/.env
     environment:
       NODE_ENV: production
     volumes:
@@ -55,4 +54,3 @@ services:
       - ./backend/src:/opt/app/src
       - ./backend/package.json:/opt/package.json
       - ./backend/yarn.lock:/opt/yarn.lock
-      - ./backend/.env:/opt/app/.env
