@@ -5,7 +5,7 @@ services:
     container_name: "traefik"
     command:
       #- "--log.level=DEBUG"
-      - "--api.insecure=true"
+#      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
@@ -18,6 +18,8 @@ services:
   nginx:
     image: nextjs-nginx:latest
     container_name: nextjs-nginx
+    depends_on:
+      - frontend
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`simis.com.au`)"
@@ -30,7 +32,6 @@ services:
     image: nextjs-frontend:latest
     container_name: nextjs-frontend
     depends_on:
-      - nginx
       - backend
     build:
       context: ./frontend
