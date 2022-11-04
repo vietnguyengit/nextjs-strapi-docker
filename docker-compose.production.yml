@@ -1,7 +1,7 @@
 version: "3.3"
 services:
   traefik:
-    image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-traefik:latest
+    image: 339201983412.dkr.ecr.ap-southeast-2.amazonaws.com/myblog-nextjs-traefik:latest
     build:
       context: ./traefik
     command:
@@ -17,19 +17,19 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
   nginx:
-    image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-nginx:latest
+    image: 339201983412.dkr.ecr.ap-southeast-2.amazonaws.com/myblog-nextjs-nginx:latest
     build:
       context: ./frontend/nginx
     depends_on:
       - frontend
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`simis.com.au`)"
+      - "traefik.http.routers.frontend.rule=Host(`localhost`) || Host(`myblog.simis.com.au`)"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
       - "traefik.http.routers.frontend.entrypoints=web"
 
   frontend:
-    image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-frontend:latest
+    image: 339201983412.dkr.ecr.ap-southeast-2.amazonaws.com/myblog-nextjs-frontend:latest
     depends_on:
       - backend
     build:
@@ -38,10 +38,10 @@ services:
       NODE_ENV: production
 
   backend:
-    image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-backend:latest
+    image: 339201983412.dkr.ecr.ap-southeast-2.amazonaws.com/myblog-nextjs-backend:latest
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`backend.localhost`) || Host(`backend.simis.com.au`)"
+      - "traefik.http.routers.backend.rule=Host(`backend.localhost`) || Host(`backend.myblog.simis.com.au`)"
       - "traefik.http.services.backend.loadbalancer.server.port=1337"
       - "traefik.http.routers.backend.entrypoints=web"
     build:
