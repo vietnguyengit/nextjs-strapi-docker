@@ -35,7 +35,7 @@ services:
     build:
       context: ./frontend
     environment:
-      NODE_ENV: dev
+      NODE_ENV: production
 
   backend:
     image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-backend:latest
@@ -48,7 +48,7 @@ services:
       context: ./backend
     restart: unless-stopped
     environment:
-      NODE_ENV: dev
+      NODE_ENV: production
     volumes:
       - ./backend/config:/opt/app/config
       - ./backend/src:/opt/app/src

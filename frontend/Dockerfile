@@ -15,7 +15,8 @@ RUN npm run build
 FROM node:16-alpine AS runner
 WORKDIR /app
 RUN npm install pm2@latest -g
-ENV NODE_ENV production
+ARG NODE_ENV
+ENV NODE_ENV=${NODE_ENV}
 # You only need to copy next.config.js if you are NOT using the default configuration
 # COPY --from=builder /app/next.config.js ./
 COPY --from=builder /app/public ./public
@@ -23,4 +24,4 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 EXPOSE 3000
-CMD ["pm2-runtime", "npm", "--", "start"]
+CMD pm2-runtime npm -- start
