@@ -1,0 +1,206 @@
+Resources:
+  ########## VPC ##########
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: 10.192.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  InternetGatewayAttachment:
+    DependsOn:
+      - InternetGateway
+      - VPC
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: InternetGateway
+      VpcId:
+        Ref: VPC
+
+  PublicSubnet1:
+    DependsOn: VPC
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      AvailabilityZone: ap-southeast-2a
+      CidrBlock: "10.192.10.0/24"
+      MapPublicIpOnLaunch: true
+
+  PublicSubnet2:
+    DependsOn: VPC
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      AvailabilityZone: ap-southeast-2b
+      CidrBlock: "10.192.11.0/24"
+      MapPublicIpOnLaunch: true
+
+  PrivateSubnet1:
+    DependsOn: VPC
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      AvailabilityZone: ap-southeast-2a
+      CidrBlock: "10.192.20.0/24"
+      MapPublicIpOnLaunch: false
+
+  PrivateSubnet2:
+    DependsOn: VPC
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      AvailabilityZone: ap-southeast-2b
+      CidrBlock: "10.192.21.0/24"
+      MapPublicIpOnLaunch: false
+
+  PublicRouteTable:
+    DependsOn: VPC
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+
+  DefaultPublicRoute:
+    DependsOn:
+      - PublicRouteTable
+      - InternetGatewayAttachment
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref:
+          PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref:
+          InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    DependsOn:
+      - PublicRouteTable
+      - PublicSubnet1
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref:
+          PublicRouteTable
+      SubnetId:
+        Ref:
+          PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    DependsOn:
+      - PublicRouteTable
+      - PublicSubnet2
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref:
+          PublicRouteTable
+      SubnetId:
+        Ref:
+          PublicSubnet2
+
+  PrivateRouteTable1:
+    DependsOn: VPC
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+
+  DefaultPrivateRoute1:
+    DependsOn:
+      - PrivateRouteTable1
+      - InternetGateway
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref:
+          PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref:
+          InternetGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    DependsOn:
+      - PrivateSubnet1
+      - PrivateRouteTable1
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref:
+          PrivateRouteTable1
+      SubnetId:
+        Ref:
+          PrivateSubnet1
+
+  PrivateRouteTable2:
+    DependsOn: VPC
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+
+  DefaultPrivateRoute2:
+    DependsOn:
+      - PrivateRouteTable2
+      - InternetGateway
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref:
+          PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref:
+          InternetGateway
+
+  PrivateSubnet2RouteTableAssociation:
+    DependsOn:
+      - PrivateRouteTable2
+      - PrivateSubnet2
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref:
+          PrivateRouteTable2
+      SubnetId:
+        Ref:
+          PrivateSubnet2
+
+  DefaultNetwork:
+    Properties:
+      SecurityGroupIngress:
+        - Description: HTTP IPv4
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - Description: HTTP IPv6
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIpv6: ::/0
+        - Description: HTTPS IPv4
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - Description: HTTPS IPv6
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: ::/0
+
+Outputs:
+  VpcId:
+    Description: The VPC ID
+    Value: !Ref VPC

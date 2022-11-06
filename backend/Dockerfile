@@ -19,6 +19,8 @@ ENV NODE_ENV=${NODE_ENV}
 # Install PM2
 RUN npm install pm2@latest -g
 WORKDIR /opt/app
+COPY ./config /config
+COPY ./src /src
 COPY --from=build /opt/node_modules ./node_modules
 ENV PATH /opt/node_modules/.bin:$PATH
 COPY --from=build /opt/app ./
