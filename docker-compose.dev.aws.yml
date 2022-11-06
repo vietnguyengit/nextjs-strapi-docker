@@ -1,10 +1,7 @@
 x-aws-vpc: "vpc-05b27ef86882e905f"
 x-aws-cloudformation:
   Resources:
-    ########## ECS FARGATE CLUSTER ##########
     Cluster:
-#      DependsOn:
-#        - VPC
       Type: AWS::ECS::Cluster
       Properties:
         CapacityProviders:
@@ -13,84 +10,28 @@ x-aws-cloudformation:
           - CapacityProvider: FARGATE_SPOT
             Weight: 1
     FrontendService:
-#      DependsOn:
-#        - LoadBalancer
-#        - PrivateSubnet1
-#        - PrivateSubnet2
       Properties:
         NetworkConfiguration:
           AwsvpcConfiguration:
-            AssignPublicIp: DISABLED
             Subnets:
-#              [
-#                Ref:
-#                  PrivateSubnet1,
-#                Ref:
-#                  PrivateSubnet2
-#              ]
               - subnet-0fad85e5d1e15de5e #private subnet-1
               - subnet-04acc7d1c90e7124c #private subnet-2
     NginxService:
-#      DependsOn:
-#        - PublicSubnet1
-#        - PublicSubnet2
-#        - PrivateSubnet1
-#        - PrivateSubnet2
-#        - LoadBalancer
-#        - NginxTCP82Listener
       Properties:
         NetworkConfiguration:
           AwsvpcConfiguration:
             Subnets:
-#              [
-#                Ref:
-#                  PublicSubnet1,
-#                Ref:
-#                  PublicSubnet2,
-#                Ref:
-#                  PrivateSubnet1,
-#                Ref:
-#                  PrivateSubnet2
-#              ]
               - subnet-092a387514379e4d0 #public subnet-1
               - subnet-03fa0d976221b86be #public subnet-2
               - subnet-0fad85e5d1e15de5e #private subnet-1
               - subnet-04acc7d1c90e7124c #private subnet-2
     BackendService:
-#      DependsOn:
-#        - LoadBalancer
-#        - PublicSubnet1
-#        - PublicSubnet2
       Properties:
         NetworkConfiguration:
           AwsvpcConfiguration:
             Subnets:
-#              [
-#                Ref:
-#                  PublicSubnet1,
-#                Ref:
-#                  PublicSubnet2
-#              ]
               - subnet-092a387514379e4d0 #public subnet-1
               - subnet-03fa0d976221b86be #public subnet-2
-
-    ########## LoadBalancer ############
-    LoadBalancer:
-#      DependsOn:
-#        - PublicSubnet1
-#        - PublicSubnet2
-      Properties:
-        LoadBalancerAttributes: []
-        Type: application
-        Subnets:
-#          [
-#            Ref:
-#              PublicSubnet1,
-#            Ref:
-#              PublicSubnet2
-#          ]
-          - subnet-092a387514379e4d0 #public subnet-1
-          - subnet-03fa0d976221b86be #public subnet-2
 
     ########## ACM SSL Certificates ############
     LoadBalancerSSLCert:
@@ -102,21 +43,20 @@ x-aws-cloudformation:
             ValidationDomain: dev.simis.com.au
           - DomainName: backend.myblog.dev.simis.com.au
             ValidationDomain: dev.simis.com.au
-          - DomainName: www.myblog.dev.simis.com.au
-            ValidationDomain: dev.simis.com.au
-          - DomainName: www.backend.myblog.dev.simis.com.au
-            ValidationDomain: dev.simis.com.au
         ValidationMethod: DNS
         SubjectAlternativeNames:
           - myblog.dev.simis.com.au
           - backend.myblog.dev.simis.com.au
-          - www.myblog.dev.simis.com.au
-          - www.backend.myblog.dev.simis.com.au
 
-    ########## LoadBalancer Security Group ############
+    ########## LoadBalancer ############
+    LoadBalancer:
+      Properties:
+        LoadBalancerAttributes: []
+        Type: application
+        Subnets:
+          - subnet-092a387514379e4d0 #public subnet-1
+          - subnet-03fa0d976221b86be #public subnet-2
     DefaultNetwork:
-#      DependsOn:
-#        - LoadBalancer
       Properties:
         SecurityGroupIngress:
           - Description: HTTP IPv4
@@ -141,38 +81,18 @@ x-aws-cloudformation:
             CidrIpv6: ::/0
 
     ########## LoadBalancer Listeners ############
-    NginxTCP82TargetGroup:
-      Type: AWS::ElasticLoadBalancingV2::TargetGroup
-#      DependsOn: VPC
-      Properties:
-        Protocol: HTTP
-#        VpcId:
-#          Ref: VPC
-
-    BackendTCP81TargetGroup:
-      Type: AWS::ElasticLoadBalancingV2::TargetGroup
-#      DependsOn: VPC
-      Properties:
-        Protocol: HTTP
-#        VpcId:
-#          Ref: VPC
-
     NginxTCP82Listener:
-#      DependsOn:
-#        - LoadBalancer
       Properties:
         Protocol: HTTP
-#        LoadBalancerArn:
-#          Ref: LoadBalancer
-
+    NginxTCP82TargetGroup:
+      Properties:
+        Protocol: HTTP
     BackendTCP81Listener:
-#      DependsOn:
-#        - LoadBalancer
       Properties:
         Protocol: HTTP
-#        LoadBalancerArn:
-#          Ref: LoadBalancer
-
+    BackendTCP81TargetGroup:
+      Properties:
+        Protocol: HTTP
     HTTPlistener:
       DependsOn:
         - LoadBalancer
@@ -191,10 +111,8 @@ x-aws-cloudformation:
           Ref: LoadBalancer
         Port: 80
         Protocol: HTTP
-
     HTTPSListener:
       DependsOn:
-        - LoadBalancer
         - LoadBalancerSSLCert
         - NginxTCP82TargetGroup
       Type: AWS::ElasticLoadBalancingV2::Listener
@@ -213,6 +131,25 @@ x-aws-cloudformation:
         Protocol: HTTPS
 
     ########## Listeners Rules ############
+    NginxTCP82ListenerRule:
+      DependsOn:
+        - NginxTCP82TargetGroup
+        - NginxTCP82Listener
+      Type: AWS::ElasticLoadBalancingV2::ListenerRule
+      Properties:
+        Actions:
+          - Type: forward
+            TargetGroupArn:
+              Ref: NginxTCP82TargetGroup
+        Conditions:
+          - Field: host-header
+            HostHeaderConfig:
+              Values:
+                - myblog.dev.simis.com.au
+        ListenerArn:
+          Ref: HTTPSListener
+        Priority: 1
+
     BackendTCP81ListenerRule:
       DependsOn:
         - BackendTCP81TargetGroup
@@ -228,7 +165,6 @@ x-aws-cloudformation:
             HostHeaderConfig:
               Values:
                 - backend.myblog.dev.simis.com.au
-                - www.backend.myblog.dev.simis.com.au
         ListenerArn:
           Ref: HTTPSListener
         Priority: 1
