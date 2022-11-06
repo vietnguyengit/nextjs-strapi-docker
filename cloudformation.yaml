@@ -171,7 +171,7 @@ Resources:
             - Name: NODE_ENV
               Value: dev
           Essential: true
-          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-backend:latest@sha256:b6a15e80e39dfafec077283026c8cc5011038bad63b4d0952797120702e73a7f
+          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-backend:latest@sha256:f6c022ddec80b5b4df94008c5bbbcb37af86e425cfc9c0e3d7bd084992f7ff15
           LinuxParameters: {}
           LogConfiguration:
             LogDriver: awslogs
@@ -378,8 +378,8 @@ Resources:
           SecurityGroups:
             - Ref: DefaultNetwork
           Subnets:
-            - subnet-0fad85e5d1e15de5e
-            - subnet-04acc7d1c90e7124c
+            - subnet-092a387514379e4d0
+            - subnet-03fa0d976221b86be
       PlatformVersion: 1.4.0
       PropagateTags: SERVICE
       SchedulingStrategy: REPLICA
@@ -434,7 +434,7 @@ Resources:
             - Name: NODE_ENV
               Value: dev
           Essential: true
-          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-frontend:latest@sha256:fc03ebb4be9c5eb1748daca89b5d77e8c2b9108cf612787b7389c046c0a0ddc7
+          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-frontend:latest@sha256:c649f451ea324c0ee6d65b5e26d694c95d4337a47e79e841e58f27bd63014670
           LinuxParameters: {}
           LogConfiguration:
             LogDriver: awslogs
@@ -445,11 +445,11 @@ Resources:
                 Ref: AWS::Region
               awslogs-stream-prefix: my-nextjs-site
           Name: frontend
-      Cpu: "1024"
+      Cpu: "512"
       ExecutionRoleArn:
         Ref: FrontendTaskExecutionRole
       Family: my-nextjs-site-frontend
-      Memory: "2048"
+      Memory: "1024"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -584,8 +584,6 @@ Resources:
           Subnets:
             - subnet-092a387514379e4d0
             - subnet-03fa0d976221b86be
-            - subnet-0fad85e5d1e15de5e
-            - subnet-04acc7d1c90e7124c
       PlatformVersion: 1.4.0
       PropagateTags: SERVICE
       SchedulingStrategy: REPLICA
@@ -660,7 +658,7 @@ Resources:
             - Condition: SUCCESS
               ContainerName: Nginx_ResolvConf_InitContainer
           Essential: true
-          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-nginx:latest@sha256:8b3b12a9ecda88a36776ddaef198ed6371c7be44735f729cfd3157f866611af7
+          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-nginx:latest@sha256:c8642318975635b5179bbb774671256c74e5944fff2cbbae9a596b557c6b0ae9
           LinuxParameters: {}
           LogConfiguration:
             LogDriver: awslogs
@@ -733,6 +731,7 @@ Resources:
           HostHeaderConfig:
             Values:
               - backend.myblog.dev.simis.com.au
+              - www.backend.myblog.dev.simis.com.au
       ListenerArn:
         Ref: HTTPSListener
       Priority: 1
@@ -779,11 +778,17 @@ Resources:
       DomainValidationOptions:
         - DomainName: myblog.dev.simis.com.au
           ValidationDomain: dev.simis.com.au
+        - DomainName: www.myblog.dev.simis.com.au
+          ValidationDomain: dev.simis.com.au
         - DomainName: backend.myblog.dev.simis.com.au
+          ValidationDomain: dev.simis.com.au
+        - DomainName: www.backend.myblog.dev.simis.com.au
           ValidationDomain: dev.simis.com.au
       SubjectAlternativeNames:
         - myblog.dev.simis.com.au
+        - www.myblog.dev.simis.com.au
         - backend.myblog.dev.simis.com.au
+        - www.backend.myblog.dev.simis.com.au
       ValidationMethod: DNS
     Type: AWS::CertificateManager::Certificate
   NginxARecord:
