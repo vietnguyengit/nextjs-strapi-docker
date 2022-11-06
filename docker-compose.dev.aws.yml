@@ -38,11 +38,11 @@ x-aws-cloudformation:
         DomainName: myblog.dev.simis.com.au
         DomainValidationOptions:
           - DomainName: myblog.dev.simis.com.au
-            ValidationDomain: dev.simis.com.
+            ValidationDomain: dev.simis.com.au
           - DomainName: www.myblog.dev.simis.com.au
             ValidationDomain: dev.simis.com.au
           - DomainName: backend.myblog.dev.simis.com.au
-            ValidationDomain: dev.simis.com.
+            ValidationDomain: dev.simis.com.au
           - DomainName: www.backend.myblog.dev.simis.com.au
             ValidationDomain: dev.simis.com.au
         ValidationMethod: DNS
