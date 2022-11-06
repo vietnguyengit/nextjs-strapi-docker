@@ -26,5 +26,5 @@ jobs:
         
       - name: Build, tag, and push image to AWS ECR
         run: |
-          docker-compose build
-          docker-compose push
+          docker-compose -f docker-compose.dev.aws.yml build --no-cache
+          docker-compose -f docker-compose.dev.aws.yml push
