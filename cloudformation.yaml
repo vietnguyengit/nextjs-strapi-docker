@@ -1,0 +1,803 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  BackendAutoScalingRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Condition: {}
+            Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - application-autoscaling:*
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                  - cloudwatch:GetMetricStatistics
+                Condition: {}
+                Effect: Allow
+                Principal: {}
+                Resource:
+                  - Ref: BackendService
+          PolicyName: service-autoscaling
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: backend
+    Type: AWS::IAM::Role
+  BackendScalableTarget:
+    DependsOn:
+      - BackendService
+    Properties:
+      MaxCapacity: 2
+      MinCapacity: 1
+      ResourceId:
+        Fn::Join:
+          - /
+          - - service
+            - Ref: Cluster
+            - Fn::GetAtt:
+                - BackendService
+                - Name
+      RoleARN:
+        Fn::GetAtt:
+          - BackendAutoScalingRole
+          - Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+  BackendScalingPolicy:
+    Properties:
+      PolicyName: BackendScalingPolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId:
+        Ref: BackendScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+        TargetValue: 65
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  BackendService:
+    DependsOn:
+      - BackendTCP81Listener
+    Properties:
+      Cluster:
+        Fn::GetAtt:
+          - Cluster
+          - Arn
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DeploymentController:
+        Type: ECS
+      DesiredCount: 1
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: 81
+          TargetGroupArn:
+            Ref: BackendTCP81TargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Ref: DefaultNetwork
+          Subnets:
+            - subnet-092a387514379e4d0
+            - subnet-03fa0d976221b86be
+      PlatformVersion: 1.4.0
+      PropagateTags: SERVICE
+      SchedulingStrategy: REPLICA
+      ServiceRegistries:
+        - RegistryArn:
+            Fn::GetAtt:
+              - BackendServiceDiscoveryEntry
+              - Arn
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: backend
+      TaskDefinition:
+        Ref: BackendTaskDefinition
+    Type: AWS::ECS::Service
+  BackendServiceDiscoveryEntry:
+    Properties:
+      Description: '"backend" service discovery entry in Cloud Map'
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: backend
+      NamespaceId:
+        Ref: CloudMap
+    Type: AWS::ServiceDiscovery::Service
+  BackendTCP81Listener:
+    Properties:
+      DefaultActions:
+        - ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn:
+                  Ref: BackendTCP81TargetGroup
+          Type: forward
+      LoadBalancerArn:
+        Ref: LoadBalancer
+      Port: 81
+      Protocol: HTTP
+    Type: AWS::ElasticLoadBalancingV2::Listener
+  BackendTCP81TargetGroup:
+    Properties:
+      Port: 81
+      Protocol: HTTP
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+      TargetType: ip
+      VpcId: vpc-05b27ef86882e905f
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  BackendTaskDefinition:
+    Properties:
+      ContainerDefinitions:
+        - Command:
+            - ap-southeast-2.compute.internal
+            - my-nextjs-site.local
+          Essential: false
+          Image: docker/ecs-searchdomain-sidecar:1.0
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-region:
+                Ref: AWS::Region
+              awslogs-stream-prefix: my-nextjs-site
+          Name: Backend_ResolvConf_InitContainer
+        - DependsOn:
+            - Condition: SUCCESS
+              ContainerName: Backend_ResolvConf_InitContainer
+          Environment:
+            - Name: NODE_ENV
+              Value: dev
+          Essential: true
+          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-backend:latest@sha256:b6a15e80e39dfafec077283026c8cc5011038bad63b4d0952797120702e73a7f
+          LinuxParameters: {}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-region:
+                Ref: AWS::Region
+              awslogs-stream-prefix: my-nextjs-site
+          Name: backend
+          PortMappings:
+            - ContainerPort: 81
+              HostPort: 81
+              Protocol: tcp
+      Cpu: "1024"
+      ExecutionRoleArn:
+        Ref: BackendTaskExecutionRole
+      Family: my-nextjs-site-backend
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+    Type: AWS::ECS::TaskDefinition
+  BackendTaskExecutionRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Condition: {}
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: backend
+    Type: AWS::IAM::Role
+  CloudMap:
+    Properties:
+      Description: Service Map for Docker Compose project my-nextjs-site
+      Name: my-nextjs-site.local
+      Vpc: vpc-05b27ef86882e905f
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+  Cluster:
+    Properties:
+      ClusterName: my-nextjs-site
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+      CapacityProviders:
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 1
+    Type: AWS::ECS::Cluster
+  Default81Ingress:
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: backend:81/tcp on default network
+      FromPort: 81
+      GroupId:
+        Ref: DefaultNetwork
+      IpProtocol: TCP
+      ToPort: 81
+    Type: AWS::EC2::SecurityGroupIngress
+  Default82Ingress:
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: nginx:82/tcp on default network
+      FromPort: 82
+      GroupId:
+        Ref: DefaultNetwork
+      IpProtocol: TCP
+      ToPort: 82
+    Type: AWS::EC2::SecurityGroupIngress
+  DefaultNetwork:
+    Properties:
+      GroupDescription: my-nextjs-site Security Group for default network
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.network
+          Value: my-nextjs-site_default
+      VpcId: vpc-05b27ef86882e905f
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: HTTP IPv4
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+        - CidrIpv6: ::/0
+          Description: HTTP IPv6
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          Description: HTTPS IPv4
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+        - CidrIpv6: ::/0
+          Description: HTTPS IPv6
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+    Type: AWS::EC2::SecurityGroup
+  DefaultNetworkIngress:
+    Properties:
+      Description: Allow communication within network default
+      GroupId:
+        Ref: DefaultNetwork
+      IpProtocol: "-1"
+      SourceSecurityGroupId:
+        Ref: DefaultNetwork
+    Type: AWS::EC2::SecurityGroupIngress
+  FrontendAutoScalingRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Condition: {}
+            Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - application-autoscaling:*
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                  - cloudwatch:GetMetricStatistics
+                Condition: {}
+                Effect: Allow
+                Principal: {}
+                Resource:
+                  - Ref: FrontendService
+          PolicyName: service-autoscaling
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: frontend
+    Type: AWS::IAM::Role
+  FrontendScalableTarget:
+    DependsOn:
+      - FrontendService
+    Properties:
+      MaxCapacity: 2
+      MinCapacity: 1
+      ResourceId:
+        Fn::Join:
+          - /
+          - - service
+            - Ref: Cluster
+            - Fn::GetAtt:
+                - FrontendService
+                - Name
+      RoleARN:
+        Fn::GetAtt:
+          - FrontendAutoScalingRole
+          - Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+  FrontendScalingPolicy:
+    Properties:
+      PolicyName: FrontendScalingPolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId:
+        Ref: FrontendScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+        TargetValue: 65
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  FrontendService:
+    Properties:
+      Cluster:
+        Fn::GetAtt:
+          - Cluster
+          - Arn
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DeploymentController:
+        Type: ECS
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Ref: DefaultNetwork
+          Subnets:
+            - subnet-0fad85e5d1e15de5e
+            - subnet-04acc7d1c90e7124c
+      PlatformVersion: 1.4.0
+      PropagateTags: SERVICE
+      SchedulingStrategy: REPLICA
+      ServiceRegistries:
+        - RegistryArn:
+            Fn::GetAtt:
+              - FrontendServiceDiscoveryEntry
+              - Arn
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: frontend
+      TaskDefinition:
+        Ref: FrontendTaskDefinition
+    Type: AWS::ECS::Service
+  FrontendServiceDiscoveryEntry:
+    Properties:
+      Description: '"frontend" service discovery entry in Cloud Map'
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: frontend
+      NamespaceId:
+        Ref: CloudMap
+    Type: AWS::ServiceDiscovery::Service
+  FrontendTaskDefinition:
+    Properties:
+      ContainerDefinitions:
+        - Command:
+            - ap-southeast-2.compute.internal
+            - my-nextjs-site.local
+          Essential: false
+          Image: docker/ecs-searchdomain-sidecar:1.0
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-region:
+                Ref: AWS::Region
+              awslogs-stream-prefix: my-nextjs-site
+          Name: Frontend_ResolvConf_InitContainer
+        - DependsOn:
+            - Condition: SUCCESS
+              ContainerName: Frontend_ResolvConf_InitContainer
+          Environment:
+            - Name: NODE_ENV
+              Value: dev
+          Essential: true
+          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-frontend:latest@sha256:fc03ebb4be9c5eb1748daca89b5d77e8c2b9108cf612787b7389c046c0a0ddc7
+          LinuxParameters: {}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-region:
+                Ref: AWS::Region
+              awslogs-stream-prefix: my-nextjs-site
+          Name: frontend
+      Cpu: "1024"
+      ExecutionRoleArn:
+        Ref: FrontendTaskExecutionRole
+      Family: my-nextjs-site-frontend
+      Memory: "2048"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+    Type: AWS::ECS::TaskDefinition
+  FrontendTaskExecutionRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Condition: {}
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: frontend
+    Type: AWS::IAM::Role
+  LoadBalancer:
+    Properties:
+      LoadBalancerAttributes: []
+      Scheme: internet-facing
+      Subnets:
+        - subnet-092a387514379e4d0
+        - subnet-03fa0d976221b86be
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+      Type: application
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  LogGroup:
+    Properties:
+      LogGroupName: /docker-compose/my-nextjs-site
+    Type: AWS::Logs::LogGroup
+  NginxAutoScalingRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Condition: {}
+            Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - application-autoscaling:*
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                  - cloudwatch:GetMetricStatistics
+                Condition: {}
+                Effect: Allow
+                Principal: {}
+                Resource:
+                  - Ref: NginxService
+          PolicyName: service-autoscaling
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: nginx
+    Type: AWS::IAM::Role
+  NginxScalableTarget:
+    DependsOn:
+      - NginxService
+    Properties:
+      MaxCapacity: 2
+      MinCapacity: 1
+      ResourceId:
+        Fn::Join:
+          - /
+          - - service
+            - Ref: Cluster
+            - Fn::GetAtt:
+                - NginxService
+                - Name
+      RoleARN:
+        Fn::GetAtt:
+          - NginxAutoScalingRole
+          - Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+  NginxScalingPolicy:
+    Properties:
+      PolicyName: NginxScalingPolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId:
+        Ref: NginxScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+        TargetValue: 65
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  NginxService:
+    DependsOn:
+      - NginxTCP82Listener
+    Properties:
+      Cluster:
+        Fn::GetAtt:
+          - Cluster
+          - Arn
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DeploymentController:
+        Type: ECS
+      DesiredCount: 1
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: nginx
+          ContainerPort: 82
+          TargetGroupArn:
+            Ref: NginxTCP82TargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Ref: DefaultNetwork
+          Subnets:
+            - subnet-092a387514379e4d0
+            - subnet-03fa0d976221b86be
+            - subnet-0fad85e5d1e15de5e
+            - subnet-04acc7d1c90e7124c
+      PlatformVersion: 1.4.0
+      PropagateTags: SERVICE
+      SchedulingStrategy: REPLICA
+      ServiceRegistries:
+        - RegistryArn:
+            Fn::GetAtt:
+              - NginxServiceDiscoveryEntry
+              - Arn
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: nginx
+      TaskDefinition:
+        Ref: NginxTaskDefinition
+    Type: AWS::ECS::Service
+  NginxServiceDiscoveryEntry:
+    Properties:
+      Description: '"nginx" service discovery entry in Cloud Map'
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: nginx
+      NamespaceId:
+        Ref: CloudMap
+    Type: AWS::ServiceDiscovery::Service
+  NginxTCP82Listener:
+    Properties:
+      DefaultActions:
+        - ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn:
+                  Ref: NginxTCP82TargetGroup
+          Type: forward
+      LoadBalancerArn:
+        Ref: LoadBalancer
+      Port: 82
+      Protocol: HTTP
+    Type: AWS::ElasticLoadBalancingV2::Listener
+  NginxTCP82TargetGroup:
+    Properties:
+      Port: 82
+      Protocol: HTTP
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+      TargetType: ip
+      VpcId: vpc-05b27ef86882e905f
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  NginxTaskDefinition:
+    Properties:
+      ContainerDefinitions:
+        - Command:
+            - ap-southeast-2.compute.internal
+            - my-nextjs-site.local
+          Essential: false
+          Image: docker/ecs-searchdomain-sidecar:1.0
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-region:
+                Ref: AWS::Region
+              awslogs-stream-prefix: my-nextjs-site
+          Name: Nginx_ResolvConf_InitContainer
+        - DependsOn:
+            - Condition: SUCCESS
+              ContainerName: Nginx_ResolvConf_InitContainer
+          Essential: true
+          Image: 900657927515.dkr.ecr.ap-southeast-2.amazonaws.com/nextjs-nginx:latest@sha256:8b3b12a9ecda88a36776ddaef198ed6371c7be44735f729cfd3157f866611af7
+          LinuxParameters: {}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-region:
+                Ref: AWS::Region
+              awslogs-stream-prefix: my-nextjs-site
+          Name: nginx
+          PortMappings:
+            - ContainerPort: 82
+              HostPort: 82
+              Protocol: tcp
+      Cpu: "512"
+      ExecutionRoleArn:
+        Ref: NginxTaskExecutionRole
+      Family: my-nextjs-site-nginx
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+    Type: AWS::ECS::TaskDefinition
+  NginxTaskExecutionRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Condition: {}
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: 2012-10-17
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Tags:
+        - Key: com.docker.compose.project
+          Value: my-nextjs-site
+        - Key: com.docker.compose.service
+          Value: nginx
+    Type: AWS::IAM::Role
+  BackendARecord:
+    Properties:
+      AliasTarget:
+        DNSName:
+          Fn::GetAtt:
+            - LoadBalancer
+            - DNSName
+        HostedZoneId:
+          Fn::GetAtt:
+            - LoadBalancer
+            - CanonicalHostedZoneID
+      HostedZoneId: Z00061643K1G0XAHRO5GI
+      Name: backend.myblog.dev.simis.com.au
+      Type: A
+    Type: AWS::Route53::RecordSet
+  BackendTCP81ListenerRule:
+    DependsOn:
+      - BackendTCP81TargetGroup
+      - BackendTCP81Listener
+    Properties:
+      Actions:
+        - TargetGroupArn:
+            Ref: BackendTCP81TargetGroup
+          Type: forward
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - backend.myblog.dev.simis.com.au
+      ListenerArn:
+        Ref: HTTPSListener
+      Priority: 1
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+  HTTPSListener:
+    DependsOn:
+      - LoadBalancerSSLCert
+      - NginxTCP82TargetGroup
+    Properties:
+      Certificates:
+        - CertificateArn:
+            Ref: LoadBalancerSSLCert
+      DefaultActions:
+        - Order: 1
+          TargetGroupArn:
+            Ref: NginxTCP82TargetGroup
+          Type: forward
+      LoadBalancerArn:
+        Ref: LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+    Type: AWS::ElasticLoadBalancingV2::Listener
+  HTTPlistener:
+    DependsOn:
+      - LoadBalancer
+    Properties:
+      DefaultActions:
+        - RedirectConfig:
+            Host: '#{host}'
+            Path: /#{path}
+            Port: "443"
+            Protocol: HTTPS
+            Query: '#{query}'
+            StatusCode: HTTP_301
+          Type: redirect
+      LoadBalancerArn:
+        Ref: LoadBalancer
+      Port: 80
+      Protocol: HTTP
+    Type: AWS::ElasticLoadBalancingV2::Listener
+  LoadBalancerSSLCert:
+    Properties:
+      DomainName: myblog.dev.simis.com.au
+      DomainValidationOptions:
+        - DomainName: myblog.dev.simis.com.au
+          ValidationDomain: dev.simis.com.au
+        - DomainName: backend.myblog.dev.simis.com.au
+          ValidationDomain: dev.simis.com.au
+      SubjectAlternativeNames:
+        - myblog.dev.simis.com.au
+        - backend.myblog.dev.simis.com.au
+      ValidationMethod: DNS
+    Type: AWS::CertificateManager::Certificate
+  NginxARecord:
+    Properties:
+      AliasTarget:
+        DNSName:
+          Fn::GetAtt:
+            - LoadBalancer
+            - DNSName
+        HostedZoneId:
+          Fn::GetAtt:
+            - LoadBalancer
+            - CanonicalHostedZoneID
+      HostedZoneId: Z00061643K1G0XAHRO5GI
+      Name: myblog.dev.simis.com.au
+      Type: A
+    Type: AWS::Route53::RecordSet
