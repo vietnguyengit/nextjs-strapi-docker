@@ -149,7 +149,6 @@ x-aws-cloudformation:
             HostHeaderConfig:
               Values:
                 - backend.myblog.dev.simis.com.au
-                - www.backend.myblog.dev.simis.com.au
         ListenerArn:
           Ref: HTTPSListener
         Priority: 1
