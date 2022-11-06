@@ -44,7 +44,7 @@ x-aws-cloudformation:
         ValidationMethod: DNS
         SubjectAlternativeNames:
           - myblog.dev.simis.com.au
-          - www.myblog.dev.simis.com.au
+          - backend.myblog.dev.simis.com.au
 
     ########## LoadBalancer ############
     LoadBalancer:
