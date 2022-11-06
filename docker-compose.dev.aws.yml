@@ -13,15 +13,13 @@ x-aws-cloudformation:
           - CapacityProvider: FARGATE_SPOT
             Weight: 1
     FrontendService:
-      DependsOn:
-        - LoadBalancer
+#      DependsOn:
+#        - LoadBalancer
 #        - PrivateSubnet1
 #        - PrivateSubnet2
       Properties:
         NetworkConfiguration:
           AwsvpcConfiguration:
-            SecurityGroups:
-              - Ref: DefaultNetwork
             AssignPublicIp: DISABLED
             Subnets:
 #              [
@@ -33,18 +31,16 @@ x-aws-cloudformation:
               - subnet-0fad85e5d1e15de5e #private subnet-1
               - subnet-04acc7d1c90e7124c #private subnet-2
     NginxService:
-      DependsOn:
+#      DependsOn:
 #        - PublicSubnet1
 #        - PublicSubnet2
 #        - PrivateSubnet1
 #        - PrivateSubnet2
-        - LoadBalancer
-        - NginxTCP82Listener
+#        - LoadBalancer
+#        - NginxTCP82Listener
       Properties:
         NetworkConfiguration:
           AwsvpcConfiguration:
-            SecurityGroups:
-              - Ref: DefaultNetwork
             Subnets:
 #              [
 #                Ref:
@@ -61,15 +57,13 @@ x-aws-cloudformation:
               - subnet-0fad85e5d1e15de5e #private subnet-1
               - subnet-04acc7d1c90e7124c #private subnet-2
     BackendService:
-      DependsOn:
-        - LoadBalancer
+#      DependsOn:
+#        - LoadBalancer
 #        - PublicSubnet1
 #        - PublicSubnet2
       Properties:
         NetworkConfiguration:
           AwsvpcConfiguration:
-            SecurityGroups:
-              - Ref: DefaultNetwork
             Subnets:
 #              [
 #                Ref:
@@ -121,8 +115,8 @@ x-aws-cloudformation:
 
     ########## LoadBalancer Security Group ############
     DefaultNetwork:
-      DependsOn:
-        - LoadBalancer
+#      DependsOn:
+#        - LoadBalancer
       Properties:
         SecurityGroupIngress:
           - Description: HTTP IPv4
@@ -164,20 +158,20 @@ x-aws-cloudformation:
 #          Ref: VPC
 
     NginxTCP82Listener:
-      DependsOn:
-        - LoadBalancer
+#      DependsOn:
+#        - LoadBalancer
       Properties:
         Protocol: HTTP
-        LoadBalancerArn:
-          Ref: LoadBalancer
+#        LoadBalancerArn:
+#          Ref: LoadBalancer
 
     BackendTCP81Listener:
-      DependsOn:
-        - LoadBalancer
+#      DependsOn:
+#        - LoadBalancer
       Properties:
         Protocol: HTTP
-        LoadBalancerArn:
-          Ref: LoadBalancer
+#        LoadBalancerArn:
+#          Ref: LoadBalancer
 
     HTTPlistener:
       DependsOn:
@@ -197,6 +191,7 @@ x-aws-cloudformation:
           Ref: LoadBalancer
         Port: 80
         Protocol: HTTP
+
     HTTPSListener:
       DependsOn:
         - LoadBalancer
@@ -233,6 +228,7 @@ x-aws-cloudformation:
             HostHeaderConfig:
               Values:
                 - backend.myblog.dev.simis.com.au
+                - www.backend.myblog.dev.simis.com.au
         ListenerArn:
           Ref: HTTPSListener
         Priority: 1
